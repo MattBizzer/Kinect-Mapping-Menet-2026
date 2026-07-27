@@ -1,5 +1,7 @@
 opencv-python==4.8.1.78
 numpy==1.26.0
 python-osc==1.8.3
+open3d
+cython<3.0
 # freenect is typically installed via system package manager (e.g., Homebrew) on Mac,
 # rather than pip, but pip install freenect may work depending on the environment.
