@@ -106,6 +106,45 @@ class KinectV2Camera:
             self.device.stop()
             self.device.close()
 
+class KinectV2WindowsCamera:
+    """Kinect v2 via the official Kinect for Windows SDK 2.0 (pykinect2), used
+    instead of libfreenect2 on Windows where the official driver is available."""
+    def __init__(self):
+        try:
+            from pykinect2 import PyKinectV2, PyKinectRuntime
+            self.PyKinectV2 = PyKinectV2
+            self.PyKinectRuntime = PyKinectRuntime
+        except ImportError:
+            print("\n❌ Error: The 'pykinect2' module is not installed or cannot be found.")
+            print("Install the official Kinect for Windows SDK 2.0, then:")
+            print("  pip install pykinect2 comtypes\n")
+            sys.exit(1)
+        self.width = 512
+        self.height = 424
+        self.default_min_depth = 500    # 500mm = 0.5m
+        self.default_max_depth = 2500   # 2500mm = 2.5m
+        self.runtime = None
+
+    def start(self):
+        print("🟢 Initializing Kinect v2 (Xbox One) via Kinect for Windows SDK...")
+        try:
+            self.runtime = self.PyKinectRuntime.PyKinectRuntime(self.PyKinectV2.FrameSourceTypes_Depth)
+        except Exception as e:
+            print(f"❌ Error initializing Kinect v2: {e}")
+            print("Verify the Kinect for Windows SDK 2.0 is installed and the sensor is connected/powered.")
+            sys.exit(1)
+
+    def get_depth(self):
+        if self.runtime is None or not self.runtime.has_new_depth_frame():
+            return None
+        # Flat uint16 array (width*height) in millimeters -> reshape to (rows, cols)
+        frame = self.runtime.get_last_depth_frame()
+        return frame.reshape((self.height, self.width)).astype(np.float32)
+
+    def stop(self):
+        if self.runtime is not None:
+            self.runtime.close()
+
 def calibrate_wall(camera, num_frames):
     """Average depth over a settle period + several frames to get a stable per-pixel
     baseline of the empty surface, so touches can be detected as departures from it."""
@@ -218,9 +257,12 @@ def main():
     parser.add_argument("--max-touches", type=int, default=3, help="[touch mode] Maximum simultaneous touch points to track (default: 3)")
     args = parser.parse_args()
 
-    # Initialize the correct Camera wrapper
+    # Initialize the correct Camera wrapper. On Windows, v2 uses the official
+    # Kinect for Windows SDK instead of libfreenect2, which isn't there.
     if args.camera == "v1":
         camera = KinectV1Camera()
+    elif sys.platform == "win32":
+        camera = KinectV2WindowsCamera()
     else:
         camera = KinectV2Camera()
 
